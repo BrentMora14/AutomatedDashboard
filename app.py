@@ -110,7 +110,7 @@ def compute_summary_stats(df):
 def call_gemini(api_key, prompt):
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
-        model="gemini-2.5-flash-preview-04-17",
+        model="gemini-2.5-flash",
         contents=prompt,
         config=genai_types.GenerateContentConfig(
             temperature=0.1,
