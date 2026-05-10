@@ -9,7 +9,8 @@ import re
 import io
 import math
 from PIL import Image
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -60,8 +61,8 @@ with st.sidebar:
     st.caption("🔑 [Get a free key →](https://aistudio.google.com/app/apikey)")
     st.divider()
     chart_theme = st.selectbox("Color theme", ["Dark ocean", "Midnight blue", "Forest green", "Warm ember"])
-    max_rows_preview = st.slider("Rows sent to AI", 50, 300, 120, step=10,
-        help="More rows = better analysis, slower response")
+    max_rows_preview = st.slider("Top-N for categories", 10, 50, 20, step=5,
+        help="Max unique values shown per categorical column — lower = faster")
     st.divider()
     st.markdown("**About**")
     st.caption("Upload any CSV → AI auto-detects columns, picks chart types, and builds a dashboard. Export as PNG.")
@@ -92,7 +93,7 @@ def infer_column_types(df):
             col_info[col] = "numeric"
         else:
             try:
-                pd.to_datetime(s.head(20), infer_datetime_format=True)
+                pd.to_datetime(s.head(20))
                 col_info[col] = "datetime"
             except Exception:
                 n_unique = s.nunique()
@@ -111,9 +112,16 @@ def compute_summary_stats(df):
     return stats
 
 def call_gemini(api_key, prompt):
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.5-flash")
-    response = model.generate_content(prompt)
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=genai_types.GenerateContentConfig(
+            temperature=0.1,
+            # Disable extended thinking — cuts latency from ~30s to ~3s
+            thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
+        ),
+    )
     return response.text
 
 def extract_json(text):
@@ -129,15 +137,32 @@ def extract_json(text):
         text = text[start:end+1]
     return json.loads(text)
 
+def build_column_profiles(df, col_info, n_preview):
+    """Compact per-column profiles — ~10x fewer tokens than raw row dump."""
+    profiles = {}
+    for col, ctype in col_info.items():
+        s = df[col].dropna()
+        if ctype == "numeric":
+            profiles[col] = {"type": "numeric", "sample_values": s.head(8).tolist()}
+        elif ctype == "datetime":
+            profiles[col] = {"type": "datetime", "sample_values": s.astype(str).head(8).tolist()}
+        else:
+            top = s.value_counts().head(n_preview)
+            profiles[col] = {
+                "type": "categorical",
+                "top_values": top.index.tolist(),
+                "top_counts": top.values.tolist(),
+            }
+    return profiles
+
 def build_prompt(df, col_info, stats, filename, n_preview):
-    preview = df.head(n_preview).to_dict(orient="records")
+    profiles = build_column_profiles(df, col_info, n_preview)
     return f"""You are an expert data analyst. Analyze this CSV and return ONLY valid JSON — no markdown, no explanation, no extra text.
 
 Filename: {filename}
 Total rows: {len(df)}
-Columns and types: {json.dumps(col_info, indent=2)}
-Summary statistics: {json.dumps(stats, indent=2)}
-Sample data ({n_preview} rows): {json.dumps(preview, default=str)}
+Column profiles: {json.dumps(profiles, default=str)}
+Numeric summary statistics: {json.dumps(stats, indent=2)}
 
 Return this exact JSON structure:
 {{
@@ -197,7 +222,7 @@ def render_chart(ch, palette, theme):
     axis_style = dict(
         gridcolor=grid, zerolinecolor=grid,
         tickfont=dict(color=text, size=11),
-        titlefont=dict(color=text),
+        title_font=dict(color=text),
     )
 
     ctype = ch["type"]
@@ -517,7 +542,7 @@ col2.metric("Columns", len(df.columns))
 col3.metric("File", filename)
 
 with st.expander("📋 Data preview", expanded=False):
-    st.dataframe(df.head(20), use_container_width=True)
+    st.dataframe(df.head(20), width='stretch')
 
 st.divider()
 
@@ -578,7 +603,7 @@ for idx, ch in enumerate(charts):
         try:
             fig = render_chart(ch, palette, theme)
             fig.update_layout(height=340)
-            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
             if ch.get("subtitle"):
                 st.caption(ch["subtitle"])
         except Exception as e:
