@@ -43,15 +43,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
+api_key = st.secrets.get("GEMINI_API_KEY", "")
+
 with st.sidebar:
     st.markdown("## ⚙️ Settings")
-    api_key = st.text_input(
-        "Gemini API Key",
-        type="password",
-        placeholder="AIza...",
-        help="Free key from https://aistudio.google.com — no credit card needed",
-    )
-    st.caption("🔑 [Get a free key →](https://aistudio.google.com/app/apikey)")
     st.divider()
     chart_theme = st.selectbox("Color theme", ["Dark ocean", "Midnight blue", "Forest green", "Warm ember"])
     top_n = st.slider("Top-N categories per chart", 5, 30, 15, step=5,
@@ -622,7 +617,7 @@ with st.expander("📋 Data preview", expanded=False):
 st.divider()
 
 if not api_key:
-    st.info("👈 Enter your Gemini API key in the sidebar. [Get one free →](https://aistudio.google.com/app/apikey)")
+    st.error("⚠️ Gemini API key not configured. Add GEMINI_API_KEY to the app's Streamlit Cloud secrets.")
     st.stop()
 
 for key in ("dashboard_config", "last_file", "png_bytes"):
