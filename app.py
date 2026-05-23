@@ -39,7 +39,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Secrets ────────────────────────────────────────────────────────────────────
-api_key = st.secrets.get("GEMINI_API_KEY", "")
+api_keys = [k for k in [st.secrets.get("GEMINI_API_KEY_1", ""), st.secrets.get("GEMINI_API_KEY_2", "")] if k]
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -84,8 +84,8 @@ with st.expander("📋 Data preview", expanded=False):
 st.divider()
 
 # ── API key guard ──────────────────────────────────────────────────────────────
-if not api_key:
-    st.error("⚠️ Gemini API key not configured. Add GEMINI_API_KEY to the app's Streamlit Cloud secrets.")
+if not api_keys:
+    st.error("⚠️ No Gemini API keys configured. Add GEMINI_API_KEY_1 (and optionally GEMINI_API_KEY_2) to Streamlit Cloud secrets.")
     st.stop()
 
 # ── Session state init ─────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ if st.session_state.dashboard_config is None:
         try:
             col_info = infer_column_types(df)
             stats    = compute_summary_stats(df)
-            config   = get_dashboard_config(api_key, df, col_info, stats, filename)
+            config   = get_dashboard_config(api_keys, df, col_info, stats, filename)
             st.session_state.dashboard_config = config
         except Exception as e:
             st.error(f"❌ Error: {e}")

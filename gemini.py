@@ -68,17 +68,25 @@ Metric rules:
 Return 4-7 charts. Return ONLY the JSON object, no other text."""
 
 
-def call_gemini(api_key: str, prompt: str) -> str:
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=genai_types.GenerateContentConfig(
-            temperature=0.1,
-            thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
-        ),
-    )
-    return response.text
+def call_gemini(api_keys: list[str], prompt: str) -> str:
+    """Try each API key in order, falling back to the next on failure."""
+    last_error = None
+    for key in api_keys:
+        try:
+            client = genai.Client(api_key=key)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=genai_types.GenerateContentConfig(
+                    temperature=0.1,
+                    thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
+                ),
+            )
+            return response.text
+        except Exception as e:
+            last_error = e
+            continue
+    raise last_error
 
 
 def extract_json(text: str) -> dict:
@@ -93,8 +101,8 @@ def extract_json(text: str) -> dict:
     return json.loads(text)
 
 
-def get_dashboard_config(api_key: str, df, col_info: dict, stats: dict, filename: str) -> dict:
-    """Full pipeline: build prompt → call Gemini → parse JSON. Raises on failure."""
+def get_dashboard_config(api_keys: list[str], df, col_info: dict, stats: dict, filename: str) -> dict:
+    """Full pipeline: build prompt → call Gemini (with key fallback) → parse JSON. Raises on failure."""
     prompt = build_prompt(df, col_info, stats, filename)
-    raw    = call_gemini(api_key, prompt)
+    raw    = call_gemini(api_keys, prompt)
     return extract_json(raw)
