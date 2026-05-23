@@ -12,7 +12,7 @@ Upload any CSV file and instantly get an AI-generated dashboard with relevant ch
 - **Executive insight** — 3–4 sentence AI summary of what the data shows
 - **PNG export** — 2× resolution (144 DPI), ready for presentations or reports
 - **Color themes** — Dark ocean, Midnight blue, Forest green, Warm ember
-- **Completely free** — uses Google Gemini 2.0 Flash (free tier, no credit card)
+- **Completely free** — uses Google Gemini 2.5 Flas
 
 ---
 
