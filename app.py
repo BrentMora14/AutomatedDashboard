@@ -150,15 +150,10 @@ st.divider()
 st.subheader("➕ Add a chart")
 st.caption("Describe a chart in plain English and it will be added to the dashboard and export.")
 
-if "chart_prompt" not in st.session_state:
-    st.session_state.chart_prompt = ""
-
 user_prompt = st.text_input(
     "Chart prompt",
-    value=st.session_state.chart_prompt,
     placeholder='e.g. "Line chart of sales over time only for the month of May"',
     label_visibility="collapsed",
-    key="chart_prompt_input",
 )
 if st.button("Add chart", type="primary"):
     if user_prompt.strip():
@@ -169,8 +164,7 @@ if st.button("Add chart", type="primary"):
                 spec     = get_additional_chart(api_keys, user_prompt.strip(), col_info, stats, filename)
                 resolved = resolve_single_chart(spec, df, top_n=top_n, scatter_limit=scatter_limit)
                 st.session_state.added_charts.append(resolved)
-                st.session_state.png_bytes   = None  # invalidate cached PNG
-                st.session_state.chart_prompt = ""   # clear input
+                st.session_state.png_bytes = None  # invalidate cached PNG
                 st.success(f"Added: {resolved.get('title', 'chart')}")
                 st.rerun()
             except Exception as e:
@@ -232,15 +226,10 @@ if st.button("🔄 Regenerate dashboard"):
     st.rerun()
 st.caption("Describe a chart in plain English and it will be added to the dashboard and export.")
 
-if "chart_prompt" not in st.session_state:
-    st.session_state.chart_prompt = ""
-
 user_prompt = st.text_input(
     "Chart prompt",
-    value=st.session_state.chart_prompt,
     placeholder='e.g. "Line chart of sales over time only for the month of May"',
     label_visibility="collapsed",
-    key="chart_prompt_input",
 )
 if st.button("Add chart", type="primary"):
     if user_prompt.strip():
@@ -251,8 +240,7 @@ if st.button("Add chart", type="primary"):
                 spec     = get_additional_chart(api_keys, user_prompt.strip(), col_info, stats, filename)
                 resolved = resolve_single_chart(spec, df, top_n=top_n, scatter_limit=scatter_limit)
                 st.session_state.added_charts.append(resolved)
-                st.session_state.png_bytes   = None  # invalidate cached PNG
-                st.session_state.chart_prompt = ""   # clear input
+                st.session_state.png_bytes = None  # invalidate cached PNG
                 st.success(f"Added: {resolved.get('title', 'chart')}")
                 st.rerun()
             except Exception as e:
