@@ -203,8 +203,9 @@ def export_dashboard_png(
     palette: list[str],
     theme: dict,
     filename: str,
+    cols_per_row: int = 2,
 ) -> bytes:
-    cols_n, W, H_per_row, HEADER_H = 2, 1600, 420, 200
+    cols_n, W, H_per_row, HEADER_H = cols_per_row, 1600, 420, 200
     n    = len(resolved_charts)
     rows = math.ceil(n / cols_n)
 

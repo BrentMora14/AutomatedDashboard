@@ -50,6 +50,7 @@ with st.sidebar:
                         help="Max unique category values shown per chart")
     scatter_limit = st.slider("Scatter point limit", 100, 2000, 500, step=100,
                         help="Max rows plotted on scatter charts (for performance)")
+    cols_per_row  = st.radio("Charts per row", [1, 2], index=1, horizontal=True)
     st.divider()
     st.markdown("**About**")
     st.caption("AI picks chart types & columns. Python computes all data from your full CSV.")
@@ -130,9 +131,9 @@ if resolved_metrics:
 
 st.divider()
 
-chart_cols = st.columns(2)
+chart_cols = st.columns(cols_per_row)
 for idx, ch in enumerate(resolved_charts):
-    with chart_cols[idx % 2]:
+    with chart_cols[idx % cols_per_row]:
         try:
             fig = render_chart(ch, palette, theme)
             fig.update_layout(height=340)
@@ -152,7 +153,8 @@ with col_a:
         with st.spinner("Rendering high-quality PNG…"):
             try:
                 png_bytes = export_dashboard_png(
-                    config, resolved_charts, resolved_metrics, df, palette, theme, filename)
+                    config, resolved_charts, resolved_metrics, df, palette, theme, filename,
+                    cols_per_row=cols_per_row)
                 st.session_state.png_bytes = png_bytes
                 st.success("PNG ready!")
             except Exception as e:
