@@ -146,7 +146,52 @@ for idx, ch in enumerate(resolved_charts):
 
 st.divider()
 
+# ── Add a custom chart ─────────────────────────────────────────────────────────
+st.subheader("➕ Add a chart")
+st.caption("Describe a chart in plain English and it will be added to the dashboard and export.")
+
+with st.form("add_chart_form", clear_on_submit=True):
+    user_prompt = st.text_input(
+        "Chart prompt",
+        placeholder='e.g. "Line chart of sales over time only for the month of May"',
+        label_visibility="collapsed",
+    )
+    submitted = st.form_submit_button("Add chart", type="primary")
+
+if submitted and user_prompt.strip():
+    with st.spinner("🤖 Generating chart…"):
+        try:
+            col_info = infer_column_types(df)
+            stats    = compute_summary_stats(df)
+            spec     = get_additional_chart(api_keys, user_prompt.strip(), col_info, stats, filename)
+            resolved = resolve_single_chart(spec, df, top_n=top_n, scatter_limit=scatter_limit)
+            st.session_state.added_charts.append(resolved)
+            st.session_state.png_bytes = None  # invalidate cached PNG
+            st.success(f"Added: {resolved.get('title', 'chart')}")
+        except Exception as e:
+            st.error(f"Could not generate chart: {e}")
+
+if st.session_state.added_charts:
+    st.markdown("**Custom charts**")
+    added_cols = st.columns(cols_per_row)
+    for idx, ch in enumerate(st.session_state.added_charts):
+        with added_cols[idx % cols_per_row]:
+            try:
+                fig = render_chart(ch, palette, theme)
+                fig.update_layout(height=340)
+                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+                if ch.get("subtitle"):
+                    st.caption(ch["subtitle"])
+            except Exception as e:
+                st.warning(f"Could not render '{ch.get('title', 'chart')}': {e}")
+
+    if st.button("🗑️ Clear custom charts"):
+        st.session_state.added_charts = []
+        st.session_state.png_bytes    = None
+        st.rerun()
+
 # ── PNG export ─────────────────────────────────────────────────────────────────
+st.divider()
 st.subheader("📥 Export dashboard")
 col_a, col_b = st.columns([1, 3])
 with col_a:
@@ -178,10 +223,6 @@ if st.button("🔄 Regenerate dashboard"):
     st.session_state.dashboard_config = None
     st.session_state.png_bytes        = None
     st.rerun()
-
-# ── Add a custom chart ─────────────────────────────────────────────────────────
-st.divider()
-st.subheader("➕ Add a chart")
 st.caption("Describe a chart in plain English and it will be added to the dashboard and export.")
 
 with st.form("add_chart_form", clear_on_submit=True):
