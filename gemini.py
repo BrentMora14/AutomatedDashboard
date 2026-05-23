@@ -106,3 +106,54 @@ def get_dashboard_config(api_keys: list[str], df, col_info: dict, stats: dict, f
     prompt = build_prompt(df, col_info, stats, filename)
     raw    = call_gemini(api_keys, prompt)
     return extract_json(raw)
+
+
+def build_additional_chart_prompt(user_prompt: str, col_info: dict, stats: dict, filename: str) -> str:
+    return f"""You are an expert data analyst. A user wants to add one custom chart to an existing dashboard.
+Return ONLY a single valid JSON chart spec — no explanation, no markdown, no extra text.
+
+Dataset: {filename}
+Column types: {json.dumps(col_info)}
+Numeric stats: {json.dumps(stats, indent=2)}
+
+User request: "{user_prompt}"
+
+Return this exact JSON structure:
+{{
+  "id": "custom_<short_unique_id>",
+  "type": "bar|horizontal_bar|line|area|pie|donut|scatter|histogram|box",
+  "title": "descriptive chart title",
+  "subtitle": "one sentence explaining what this shows",
+  "x_col": "exact column name or null",
+  "y_col": "exact column name or null",
+  "col": "exact column name (histogram only) or null",
+  "agg": "sum|mean|count|min|max",
+  "sort": "desc|asc|none",
+  "limit": 15,
+  "time_group": "day|month|year|null",
+  "x_label": "human-readable x label or null",
+  "y_label": "human-readable y label or null",
+  "filters": [
+    {{
+      "col": "exact column name to filter on",
+      "op": "eq|ne|gt|lt|gte|lte|in|contains|month_eq|year_eq",
+      "value": "scalar value, or list of values for op=in"
+    }}
+  ]
+}}
+
+Filter op reference:
+- month_eq / year_eq: value is an integer (e.g. 5 for May, 2024 for year)
+- eq / ne / gt / lt / gte / lte: direct value comparison
+- in: value must be a JSON array
+- contains: case-insensitive substring match on string columns
+
+Use an empty list [] for filters if no filtering is needed.
+Only use column names that exist in the dataset. Return ONLY the JSON object."""
+
+
+def get_additional_chart(api_keys: list[str], user_prompt: str, col_info: dict, stats: dict, filename: str) -> dict:
+    """Translate a natural language chart request into a single chart spec. Raises on failure."""
+    prompt = build_additional_chart_prompt(user_prompt, col_info, stats, filename)
+    raw    = call_gemini(api_keys, prompt)
+    return extract_json(raw)

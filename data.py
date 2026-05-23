@@ -40,6 +40,47 @@ def compute_summary_stats(df: pd.DataFrame) -> dict:
     return stats
 
 
+# ── Filter application ─────────────────────────────────────────────────────────
+
+def apply_filters(df: pd.DataFrame, filters: list[dict]) -> pd.DataFrame:
+    """Apply a list of filter specs to df and return the filtered subset.
+
+    Supported ops:
+        eq, ne, gt, lt, gte, lte  — direct value comparison
+        in                         — value in list
+        contains                   — case-insensitive substring match
+        month_eq, year_eq          — datetime component match (value = int)
+    """
+    if not filters:
+        return df
+
+    mask = pd.Series(True, index=df.index)
+    for f in filters:
+        col = f.get("col")
+        op  = f.get("op")
+        val = f.get("value")
+
+        if not col or col not in df.columns:
+            continue
+
+        s = df[col]
+        try:
+            if   op == "eq":       mask &= s == val
+            elif op == "ne":       mask &= s != val
+            elif op == "gt":       mask &= s > val
+            elif op == "lt":       mask &= s < val
+            elif op == "gte":      mask &= s >= val
+            elif op == "lte":      mask &= s <= val
+            elif op == "in":       mask &= s.isin(val if isinstance(val, list) else [val])
+            elif op == "contains": mask &= s.astype(str).str.contains(str(val), case=False, na=False)
+            elif op == "month_eq": mask &= pd.to_datetime(s).dt.month == int(val)
+            elif op == "year_eq":  mask &= pd.to_datetime(s).dt.year  == int(val)
+        except Exception:
+            continue  # skip malformed filter, don't crash
+
+    return df[mask]
+
+
 # ── Metric computation ─────────────────────────────────────────────────────────
 
 def compute_metric(spec: dict, df: pd.DataFrame) -> tuple[str, str]:
@@ -92,6 +133,9 @@ def resolve_metrics(config: dict, df: pd.DataFrame) -> list[dict]:
 # ── Chart data computation ─────────────────────────────────────────────────────
 
 def compute_chart_data(spec: dict, df: pd.DataFrame, top_n: int = 15, scatter_limit: int = 500) -> dict | None:
+    # Apply any filters declared in the spec before aggregating
+    df = apply_filters(df, spec.get("filters", []))
+
     ctype  = spec.get("type", "bar")
     x_col  = spec.get("x_col")
     y_col  = spec.get("y_col")
@@ -199,6 +243,18 @@ def resolve_charts(config: dict, df: pd.DataFrame, top_n: int, scatter_limit: in
             ch["datasets"] = result["datasets"]
             resolved.append(ch)
         except Exception as e:
-            # Caller (app.py) is responsible for surfacing warnings to the UI
             print(f"[data] Skipped chart '{ch.get('title', '?')}': {e}")
     return resolved
+
+
+def resolve_single_chart(spec: dict, df: pd.DataFrame, top_n: int, scatter_limit: int) -> dict:
+    """Compute data for a single chart spec and return the enriched dict. Raises on failure."""
+    result = compute_chart_data(spec, df, top_n=top_n, scatter_limit=scatter_limit)
+    if result is None or not result["datasets"]:
+        raise ValueError("Chart spec produced no data. Check column names and filters.")
+    if not result["labels"] and spec.get("type") not in ("histogram", "box"):
+        raise ValueError("Chart produced no labels. The filtered dataset may be empty.")
+    spec = dict(spec)
+    spec["labels"]   = result["labels"]
+    spec["datasets"] = result["datasets"]
+    return spec

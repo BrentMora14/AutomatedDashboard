@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 
 from theme import THEME_NAMES, get_palette, get_theme
-from data import infer_column_types, compute_summary_stats, resolve_charts, resolve_metrics
-from gemini import get_dashboard_config
+from data import infer_column_types, compute_summary_stats, resolve_charts, resolve_metrics, resolve_single_chart
+from gemini import get_dashboard_config, get_additional_chart
 from charts import render_chart
 from export import export_dashboard_png
 
@@ -89,14 +89,15 @@ if not api_keys:
     st.stop()
 
 # ── Session state init ─────────────────────────────────────────────────────────
-for key in ("dashboard_config", "last_file", "png_bytes"):
+for key in ("dashboard_config", "last_file", "png_bytes", "added_charts"):
     if key not in st.session_state:
-        st.session_state[key] = None
+        st.session_state[key] = None if key != "added_charts" else []
 
 if st.session_state.last_file != filename:
     st.session_state.dashboard_config = None
     st.session_state.png_bytes        = None
     st.session_state.last_file        = filename
+    st.session_state.added_charts      = []
 
 # ── AI layout generation ───────────────────────────────────────────────────────
 if st.session_state.dashboard_config is None:
@@ -152,8 +153,9 @@ with col_a:
     if st.button("🖼️ Generate PNG", type="primary", use_container_width=True):
         with st.spinner("Rendering high-quality PNG…"):
             try:
+                all_charts = resolved_charts + st.session_state.added_charts
                 png_bytes = export_dashboard_png(
-                    config, resolved_charts, resolved_metrics, df, palette, theme, filename,
+                    config, all_charts, resolved_metrics, df, palette, theme, filename,
                     cols_per_row=cols_per_row)
                 st.session_state.png_bytes = png_bytes
                 st.success("PNG ready!")
@@ -176,3 +178,48 @@ if st.button("🔄 Regenerate dashboard"):
     st.session_state.dashboard_config = None
     st.session_state.png_bytes        = None
     st.rerun()
+
+# ── Add a custom chart ─────────────────────────────────────────────────────────
+st.divider()
+st.subheader("➕ Add a chart")
+st.caption("Describe a chart in plain English and it will be added to the dashboard and export.")
+
+with st.form("add_chart_form", clear_on_submit=True):
+    user_prompt = st.text_input(
+        "Chart prompt",
+        placeholder='e.g. "Line chart of sales over time only for the month of May"',
+        label_visibility="collapsed",
+    )
+    submitted = st.form_submit_button("Add chart", type="primary")
+
+if submitted and user_prompt.strip():
+    with st.spinner("🤖 Generating chart…"):
+        try:
+            col_info = infer_column_types(df)
+            stats    = compute_summary_stats(df)
+            spec     = get_additional_chart(api_keys, user_prompt.strip(), col_info, stats, filename)
+            resolved = resolve_single_chart(spec, df, top_n=top_n, scatter_limit=scatter_limit)
+            st.session_state.added_charts.append(resolved)
+            st.session_state.png_bytes = None  # invalidate cached PNG
+            st.success(f"Added: {resolved.get('title', 'chart')}")
+        except Exception as e:
+            st.error(f"Could not generate chart: {e}")
+
+if st.session_state.added_charts:
+    st.markdown("**Custom charts**")
+    added_cols = st.columns(cols_per_row)
+    for idx, ch in enumerate(st.session_state.added_charts):
+        with added_cols[idx % cols_per_row]:
+            try:
+                fig = render_chart(ch, palette, theme)
+                fig.update_layout(height=340)
+                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+                if ch.get("subtitle"):
+                    st.caption(ch["subtitle"])
+            except Exception as e:
+                st.warning(f"Could not render '{ch.get('title', 'chart')}': {e}")
+
+    if st.button("🗑️ Clear custom charts"):
+        st.session_state.added_charts = []
+        st.session_state.png_bytes    = None
+        st.rerun()
