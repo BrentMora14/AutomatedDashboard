@@ -46,7 +46,7 @@ with st.sidebar:
     st.markdown("## ⚙️ Settings")
     st.divider()
     chart_theme   = st.selectbox("Color theme", THEME_NAMES)
-    top_n         = st.slider("Top-N categories per chart", 1, 30, 15, step=2,
+    top_n         = st.slider("Top-N categories per chart", 1, 30, 15, step=5,
                         help="Max unique category values shown per chart")
     scatter_limit = st.slider("Scatter point limit", 100, 2000, 500, step=100,
                         help="Max rows plotted on scatter charts (for performance)")
